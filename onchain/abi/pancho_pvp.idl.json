@@ -149,10 +149,11 @@
           "name": "admin",
           "writable": true,
           "signer": true,
-          "address": "Dkm5UeGTaeXDkauBMtNwbHGw7q2aXbrqb9HBQVN5GFx8"
+          "address": "6X8KQrJ87ekdeUaxwR38fRtrhhDr1ZE4PSc1GsGRqTfe"
         },
         {
-          "name": "treasury"
+          "name": "treasury",
+          "address": "418cSB954o9jaYeDRFj3CFWzzLNkTERwY2h8ErHEgvzR"
         },
         {
           "name": "config",
@@ -520,6 +521,56 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "sweep_round_dust",
+      "discriminator": [
+        216,
+        121,
+        152,
+        243,
+        2,
+        162,
+        127,
+        123
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "round",
+          "writable": true
+        },
+        {
+          "name": "up_vault",
+          "writable": true
+        },
+        {
+          "name": "down_vault",
+          "writable": true
+        },
+        {
+          "name": "treasury",
+          "writable": true
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -588,6 +639,19 @@
         150,
         248,
         33
+      ]
+    },
+    {
+      "name": "DustSwept",
+      "discriminator": [
+        131,
+        70,
+        179,
+        205,
+        208,
+        80,
+        13,
+        168
       ]
     },
     {
@@ -778,6 +842,21 @@
       "code": 6026,
       "name": "StaleOraclePrice",
       "msg": "Stale oracle price"
+    },
+    {
+      "code": 6027,
+      "name": "ImmutableFeeBps",
+      "msg": "Fee BPS is immutable and must remain 600"
+    },
+    {
+      "code": 6028,
+      "name": "ImmutableTreasury",
+      "msg": "Treasury wallet is immutable"
+    },
+    {
+      "code": 6029,
+      "name": "ClaimsNotComplete",
+      "msg": "All positions must be claimed before dust sweep"
     }
   ],
   "types": [
@@ -804,6 +883,22 @@
           },
           {
             "name": "payout",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DustSwept",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "round",
+            "type": "pubkey"
+          },
+          {
+            "name": "lamports",
             "type": "u64"
           }
         ]
@@ -957,6 +1052,14 @@
           },
           {
             "name": "distributable_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "total_positions",
+            "type": "u64"
+          },
+          {
+            "name": "claimed_positions",
             "type": "u64"
           },
           {

@@ -119,6 +119,8 @@ pub mod pancho_pvp {
         round.down_total = 0;
         round.fee_lamports = 0;
         round.distributable_lamports = 0;
+        round.total_positions = 0;
+        round.claimed_positions = 0;
         round.bump = ctx.bumps.round;
 
         let up_vault = &mut ctx.accounts.up_vault;
@@ -167,6 +169,10 @@ pub mod pancho_pvp {
             position.side = side;
             position.claimed = false;
             position.bump = ctx.bumps.position;
+            round.total_positions = round
+                .total_positions
+                .checked_add(1)
+                .ok_or(PanchoError::MathOverflow)?;
         }
         require!(position.side == side, PanchoError::PositionSideMismatch);
         require!(!position.claimed, PanchoError::AlreadyClaimed);
@@ -307,7 +313,7 @@ pub mod pancho_pvp {
     }
 
     pub fn claim(ctx: Context<Claim>) -> Result<()> {
-        let round = &ctx.accounts.round;
+        let round = &mut ctx.accounts.round;
         let position = &mut ctx.accounts.position;
 
         require!(round.status == ROUND_SETTLED, PanchoError::RoundNotSettled);
@@ -328,6 +334,10 @@ pub mod pancho_pvp {
         };
 
         position.claimed = true;
+        round.claimed_positions = round
+            .claimed_positions
+            .checked_add(1)
+            .ok_or(PanchoError::MathOverflow)?;
 
         if payout > 0 {
             transfer_from_vaults(
@@ -344,6 +354,38 @@ pub mod pancho_pvp {
             side: position.side,
             stake: position.amount,
             payout,
+        });
+
+        Ok(())
+    }
+
+    pub fn sweep_round_dust(ctx: Context<SweepRoundDust>) -> Result<()> {
+        let round = &ctx.accounts.round;
+        require!(round.status == ROUND_SETTLED, PanchoError::RoundNotSettled);
+        require!(
+            round.claimed_positions == round.total_positions,
+            PanchoError::ClaimsNotComplete
+        );
+
+        let dust = ctx
+            .accounts
+            .up_vault
+            .to_account_info()
+            .lamports()
+            .checked_add(ctx.accounts.down_vault.to_account_info().lamports())
+            .ok_or(PanchoError::MathOverflow)?;
+        if dust > 0 {
+            transfer_from_vaults(
+                &ctx.accounts.up_vault.to_account_info(),
+                &ctx.accounts.down_vault.to_account_info(),
+                &ctx.accounts.treasury.to_account_info(),
+                dust,
+            )?;
+        }
+
+        emit!(DustSwept {
+            round: round.key(),
+            lamports: dust,
         });
 
         Ok(())
@@ -723,6 +765,31 @@ pub struct Claim<'info> {
     pub down_vault: Account<'info, Vault>,
 }
 
+#[derive(Accounts)]
+pub struct SweepRoundDust<'info> {
+    #[account(seeds = [b"config"], bump = config.bump)]
+    pub config: Account<'info, GlobalConfig>,
+    #[account(mut)]
+    pub round: Account<'info, Round>,
+    #[account(
+        mut,
+        seeds = [b"vault", round.key().as_ref(), &[SIDE_UP]],
+        bump = up_vault.bump,
+        constraint = up_vault.round == round.key() @ PanchoError::VaultRoundMismatch
+    )]
+    pub up_vault: Account<'info, Vault>,
+    #[account(
+        mut,
+        seeds = [b"vault", round.key().as_ref(), &[SIDE_DOWN]],
+        bump = down_vault.bump,
+        constraint = down_vault.round == round.key() @ PanchoError::VaultRoundMismatch
+    )]
+    pub down_vault: Account<'info, Vault>,
+    /// CHECK: validated against config.treasury
+    #[account(mut, address = config.treasury)]
+    pub treasury: UncheckedAccount<'info>,
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct GlobalConfig {
@@ -756,6 +823,8 @@ pub struct Round {
     pub down_total: u64,
     pub fee_lamports: u64,
     pub distributable_lamports: u64,
+    pub total_positions: u64,
+    pub claimed_positions: u64,
     pub bump: u8,
 }
 
@@ -823,6 +892,12 @@ pub struct Claimed {
     pub payout: u64,
 }
 
+#[event]
+pub struct DustSwept {
+    pub round: Pubkey,
+    pub lamports: u64,
+}
+
 #[error_code]
 pub enum PanchoError {
     #[msg("Invalid fee bps")]
@@ -883,4 +958,6 @@ pub enum PanchoError {
     ImmutableFeeBps,
     #[msg("Treasury wallet is immutable")]
     ImmutableTreasury,
+    #[msg("All positions must be claimed before dust sweep")]
+    ClaimsNotComplete,
 }

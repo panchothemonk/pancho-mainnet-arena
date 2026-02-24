@@ -155,10 +155,11 @@ export type PanchoPvp = {
           "name": "admin",
           "writable": true,
           "signer": true,
-          "address": "Dkm5UeGTaeXDkauBMtNwbHGw7q2aXbrqb9HBQVN5GFx8"
+          "address": "6X8KQrJ87ekdeUaxwR38fRtrhhDr1ZE4PSc1GsGRqTfe"
         },
         {
-          "name": "treasury"
+          "name": "treasury",
+          "address": "418cSB954o9jaYeDRFj3CFWzzLNkTERwY2h8ErHEgvzR"
         },
         {
           "name": "config",
@@ -526,6 +527,56 @@ export type PanchoPvp = {
         }
       ],
       "args": []
+    },
+    {
+      "name": "sweepRoundDust",
+      "discriminator": [
+        216,
+        121,
+        152,
+        243,
+        2,
+        162,
+        127,
+        123
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "round",
+          "writable": true
+        },
+        {
+          "name": "upVault",
+          "writable": true
+        },
+        {
+          "name": "downVault",
+          "writable": true
+        },
+        {
+          "name": "treasury",
+          "writable": true
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -594,6 +645,19 @@ export type PanchoPvp = {
         150,
         248,
         33
+      ]
+    },
+    {
+      "name": "dustSwept",
+      "discriminator": [
+        131,
+        70,
+        179,
+        205,
+        208,
+        80,
+        13,
+        168
       ]
     },
     {
@@ -784,6 +848,21 @@ export type PanchoPvp = {
       "code": 6026,
       "name": "staleOraclePrice",
       "msg": "Stale oracle price"
+    },
+    {
+      "code": 6027,
+      "name": "immutableFeeBps",
+      "msg": "Fee BPS is immutable and must remain 600"
+    },
+    {
+      "code": 6028,
+      "name": "immutableTreasury",
+      "msg": "Treasury wallet is immutable"
+    },
+    {
+      "code": 6029,
+      "name": "claimsNotComplete",
+      "msg": "All positions must be claimed before dust sweep"
     }
   ],
   "types": [
@@ -810,6 +889,22 @@ export type PanchoPvp = {
           },
           {
             "name": "payout",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "dustSwept",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "round",
+            "type": "pubkey"
+          },
+          {
+            "name": "lamports",
             "type": "u64"
           }
         ]
@@ -963,6 +1058,14 @@ export type PanchoPvp = {
           },
           {
             "name": "distributableLamports",
+            "type": "u64"
+          },
+          {
+            "name": "totalPositions",
+            "type": "u64"
+          },
+          {
+            "name": "claimedPositions",
             "type": "u64"
           },
           {

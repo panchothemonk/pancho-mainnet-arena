@@ -7,6 +7,7 @@ import {
   recordJoinAttempt
 } from "@/lib/round-ledger";
 import { auditLog } from "@/lib/audit";
+import { checkRateLimit, getClientIp, rateLimitExceededResponse } from "@/lib/api-guards";
 import { MARKET_CONFIGS, resolveMarketByKey } from "@/lib/oracle";
 
 export const runtime = "nodejs";
@@ -17,6 +18,8 @@ const SETTLEMENT_DURATION_SECONDS = 5 * 60;
 const RATE_LIMIT_WINDOW_SECONDS = 60;
 const MAX_ATTEMPTS_PER_WALLET_PER_WINDOW = 12;
 const MAX_ATTEMPTS_PER_IP_PER_WINDOW = 30;
+const GLOBAL_IP_WINDOW_MS = 10_000;
+const GLOBAL_IP_LIMIT = 20;
 const MIN_STAKE_USD = 1;
 const MAX_STAKE_USD = 5000;
 const MAX_STAKE_LAMPORTS = 25 * 1_000_000_000;
@@ -24,31 +27,23 @@ const ALLOWED_DIRECTIONS = new Set(["UP", "DOWN"]);
 const ALLOWED_MARKETS = new Set(MARKET_CONFIGS.map((market) => market.key));
 const ALLOWED_STAKES = new Set([5, 10, 25, 50, 100, 250]);
 
-function getClientIp(req: Request): string | null {
-  const cfConnectingIp = req.headers.get("cf-connecting-ip");
-  if (cfConnectingIp?.trim()) {
-    return cfConnectingIp.trim();
-  }
-
-  const xForwardedFor = req.headers.get("x-forwarded-for");
-  if (xForwardedFor) {
-    const first = xForwardedFor.split(",")[0]?.trim();
-    if (first) {
-      return first;
-    }
-  }
-
-  const realIp = req.headers.get("x-real-ip");
-  return realIp?.trim() || null;
-}
-
 export async function POST(req: Request) {
   try {
-    if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_USE_ONCHAIN_PROGRAM !== "true") {
+    if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_USE_ONCHAIN_PROGRAM === "true") {
       return NextResponse.json(
-        { error: "Real-money off-chain custody mode is disabled in production. Enable on-chain program mode." },
-        { status: 503 }
+        { error: "Legacy ledger registration is disabled in production on-chain mode." },
+        { status: 410 }
       );
+    }
+
+    const clientIp = getClientIp(req);
+    const globalRate = await checkRateLimit({
+      key: `entries:ip:${clientIp}`,
+      limit: Number(process.env.PANCHO_RL_ENTRIES_IP_LIMIT ?? GLOBAL_IP_LIMIT),
+      windowMs: Number(process.env.PANCHO_RL_ENTRIES_IP_WINDOW_MS ?? GLOBAL_IP_WINDOW_MS)
+    });
+    if (!globalRate.ok) {
+      return rateLimitExceededResponse(globalRate.retryAfterSec, "Too many join attempts from this IP.");
     }
 
     const body = (await req.json()) as {
@@ -131,7 +126,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid wallet address" }, { status: 400 });
     }
 
-    const clientIp = getClientIp(req);
     await recordJoinAttempt(body.wallet, clientIp);
     const rate = await countRecentJoinAttempts({
       wallet: body.wallet,
