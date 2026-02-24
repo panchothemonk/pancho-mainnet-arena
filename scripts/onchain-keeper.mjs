@@ -14,7 +14,8 @@ const SETTLEMENT_SECONDS = Number(process.env.PANCHO_SETTLEMENT_SECONDS ?? 300);
 const LOCK_GRACE_SECONDS = Number(process.env.PANCHO_LOCK_GRACE_SECONDS ?? 180);
 const BACKFILL_LIMIT = Number(process.env.PANCHO_KEEPER_BACKFILL_LIMIT ?? 80);
 
-const FEE_BPS = Number(process.env.PANCHO_FEE_BPS ?? 600);
+const FEE_BPS = 600;
+const IMMUTABLE_TREASURY = "418cSB954o9jaYeDRFj3CFWzzLNkTERwY2h8ErHEgvzR";
 const ORACLE_MAX_AGE_SLOTS = Number(
   process.env.PANCHO_ORACLE_MAX_AGE_SLOTS ?? process.env.PANCHO_ORACLE_MAX_AGE_SEC ?? 120
 );
@@ -230,6 +231,14 @@ async function maybeInitializeConfig(connection, payer, configPda) {
     throw new Error(
       "Missing PANCHO_TREASURY_WALLET/PANCHO_ORACLE_PROGRAM_ID/PANCHO_ORACLE_ACCOUNT_SOL/PANCHO_ORACLE_ACCOUNT_BTC/PANCHO_ORACLE_ACCOUNT_ETH for config initialization."
     );
+  }
+  if (treasury !== IMMUTABLE_TREASURY) {
+    throw new Error(
+      `PANCHO_TREASURY_WALLET must equal immutable treasury ${IMMUTABLE_TREASURY} for this program build.`
+    );
+  }
+  if (process.env.PANCHO_FEE_BPS && Number(process.env.PANCHO_FEE_BPS) !== FEE_BPS) {
+    throw new Error(`PANCHO_FEE_BPS must be ${FEE_BPS} for immutable-fee build.`);
   }
 
   const ix = new TransactionInstruction({

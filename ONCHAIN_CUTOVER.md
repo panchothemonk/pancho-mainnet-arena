@@ -1,4 +1,4 @@
-# On-Chain Cutover Plan
+# On-Chain Cutover Plan (Mainnet)
 
 This is the hard gate before enabling fully on-chain custody/settlement in production.
 
@@ -44,13 +44,13 @@ From repo root:
 ```bash
 npm run onchain:build
 cd onchain
-anchor deploy --provider.cluster devnet --provider.wallet ~/.config/solana/id.json
+anchor deploy --provider.cluster mainnet --provider.wallet ~/.config/solana/id.json
 ```
 
 Verify:
 
 ```bash
-solana program show "$PANCHO_PROGRAM_ID" --url devnet
+solana program show "$PANCHO_PROGRAM_ID" --url mainnet-beta
 ```
 
 ## 4) Start On-Chain Keeper
@@ -100,3 +100,9 @@ If abnormal behavior:
 - set `PANCHO_PAUSE_SETTLE_API=on`
 - set `PANCHO_PAUSE_JOINS=on`
 - set `PANCHO_PAUSE_SIM_SETTLEMENTS=on` (if any sim paths still enabled)
+
+## Immutable policy in this repo
+
+- Fee is hard-locked on-chain at `600` bps (6%).
+- Treasury is hard-locked on-chain to `418cSB954o9jaYeDRFj3CFWzzLNkTERwY2h8ErHEgvzR`.
+- `set_treasury` is disabled on-chain.

@@ -3,7 +3,9 @@ use anchor_lang::prelude::*;
 declare_id!("52nguesHaBuF4psFr2uybVnW4angLW2ZtsBRSRmdF8k3");
 
 const BPS_DENOMINATOR: u64 = 10_000;
-const INITIAL_ADMIN: Pubkey = pubkey!("Dkm5UeGTaeXDkauBMtNwbHGw7q2aXbrqb9HBQVN5GFx8");
+const INITIAL_ADMIN: Pubkey = pubkey!("6X8KQrJ87ekdeUaxwR38fRtrhhDr1ZE4PSc1GsGRqTfe");
+const INITIAL_TREASURY: Pubkey = pubkey!("418cSB954o9jaYeDRFj3CFWzzLNkTERwY2h8ErHEgvzR");
+const IMMUTABLE_FEE_BPS: u16 = 600;
 const SIDE_UP: u8 = 0;
 const SIDE_DOWN: u8 = 1;
 const SIDE_NONE: u8 = 255;
@@ -25,7 +27,8 @@ pub mod pancho_pvp {
         oracle_account_btc: Pubkey,
         oracle_account_eth: Pubkey,
     ) -> Result<()> {
-        require!(fee_bps <= 1_500, PanchoError::InvalidFeeBps);
+        require!(fee_bps == IMMUTABLE_FEE_BPS, PanchoError::ImmutableFeeBps);
+        require_keys_eq!(ctx.accounts.treasury.key(), INITIAL_TREASURY, PanchoError::ImmutableTreasury);
 
         let config = &mut ctx.accounts.config;
         config.admin = ctx.accounts.admin.key();
@@ -48,10 +51,9 @@ pub mod pancho_pvp {
         oracle_max_age_sec: u32,
         paused: bool,
     ) -> Result<()> {
-        require!(fee_bps <= 1_500, PanchoError::InvalidFeeBps);
+        require!(fee_bps == ctx.accounts.config.fee_bps, PanchoError::ImmutableFeeBps);
 
         let config = &mut ctx.accounts.config;
-        config.fee_bps = fee_bps;
         config.oracle_max_age_sec = oracle_max_age_sec;
         config.paused = paused;
 
@@ -59,9 +61,8 @@ pub mod pancho_pvp {
     }
 
     pub fn set_treasury(ctx: Context<SetTreasury>) -> Result<()> {
-        let config = &mut ctx.accounts.config;
-        config.treasury = ctx.accounts.new_treasury.key();
-        Ok(())
+        let _ = ctx;
+        err!(PanchoError::ImmutableTreasury)
     }
 
     pub fn set_oracle_accounts(
@@ -535,6 +536,7 @@ pub struct InitializeConfig<'info> {
     #[account(mut, address = INITIAL_ADMIN)]
     pub admin: Signer<'info>,
     /// CHECK: destination treasury wallet
+    #[account(address = INITIAL_TREASURY)]
     pub treasury: UncheckedAccount<'info>,
     #[account(
         init,
@@ -877,4 +879,8 @@ pub enum PanchoError {
     InvalidOracleOwner,
     #[msg("Stale oracle price")]
     StaleOraclePrice,
+    #[msg("Fee BPS is immutable and must remain 600")]
+    ImmutableFeeBps,
+    #[msg("Treasury wallet is immutable")]
+    ImmutableTreasury,
 }

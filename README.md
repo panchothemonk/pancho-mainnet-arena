@@ -1,4 +1,13 @@
-# Pancho Bull/Bear PvP (Devnet)
+# Pancho Bull/Bear PvP (Mainnet Repo)
+
+This repository is the separate mainnet track and is intentionally isolated from the sim repo.
+
+Mainnet lock rules in this repo:
+- protocol fee is immutable at 6% (`600` bps) on-chain
+- treasury is immutable: `418cSB954o9jaYeDRFj3CFWzzLNkTERwY2h8ErHEgvzR`
+- initial admin is fixed: `6X8KQrJ87ekdeUaxwR38fRtrhhDr1ZE4PSc1GsGRqTfe`
+
+Only pause/oracle freshness settings remain admin-adjustable.
 
 ## Quick start
 
