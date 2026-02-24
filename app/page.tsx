@@ -8,12 +8,12 @@ export default function Page() {
           <div>
             <div className="hero-badge">
               <span className="hero-live-dot" aria-hidden="true" />
-              SOL MAINNET LAUNCH COMING SOON
+              SOL MAINNET LIVE
             </div>
             <h1>Pancho Degen Arena</h1>
             <p>
-              PANCHO MAINNET ARENA is launching soon on Solana. Connect your wallet, pick <strong>BULL</strong> or{" "}
-              <strong>BEAR</strong>, and run preview rounds with real oracle outcomes on SOL, BTC, and ETH.
+              PANCHO MAINNET ARENA is live on Solana. Connect your wallet, pick <strong>BULL</strong> or{" "}
+              <strong>BEAR</strong>, and run live rounds with real oracle outcomes on SOL, BTC, and ETH.
             </p>
           </div>
           <div className="hero-art">
@@ -24,7 +24,7 @@ export default function Page() {
       <UpDownTerminal />
       <section className="notes">
         <p>
-          Preview mode uses Pancho Bucks. Entry closes every 60s and settles 5m after lock. Tap Payout Math for simple pool examples.
+          Live at mainarena.panchoverse.com. Entry closes every 60s and settles 5m after lock. Tap Payout Math for simple pool examples.
         </p>
       </section>
     </main>

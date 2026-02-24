@@ -1147,7 +1147,7 @@ export default function UpDownTerminal() {
 
       <p className="launch-banner">
         <span className="launch-live-dot" aria-hidden="true" />
-        SOL MAINNET PLAYER VS PLAYER launch coming soon. This is the degen preview.
+        SOL MAINNET PLAYER VS PLAYER is live on mainarena.panchoverse.com.
       </p>
       {runtimeStatus && runtimeStatus.status !== "ok" ? (
         <div className={`runtime-alert runtime-alert-${runtimeStatus.status}`}>
@@ -1366,7 +1366,7 @@ export default function UpDownTerminal() {
       </p>
       <p className="footnote">
         {SIM_MODE
-          ? "Preview mode is live with Pancho Bucks on shared pools. Real SOL wagers go live at mainnet launch."
+          ? "Live mode: Pancho Bucks shared pools are active on mainarena.panchoverse.com."
           : USE_ONCHAIN_PROGRAM
           ? "Onchain mode live: your join hits Pancho program directly."
           : "Keeper mode live: server settles and pays results."}

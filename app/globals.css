@@ -97,9 +97,8 @@ body {
   width: 0.52rem;
   height: 0.52rem;
   border-radius: 999px;
-  background: #ff3649;
-  box-shadow: 0 0 0 0 rgba(255, 54, 73, 0.7);
-  animation: pulseRed 1.15s ease-in-out infinite;
+  background: #3ce189;
+  box-shadow: 0 0 10px rgba(60, 225, 137, 0.55);
 }
 
 .terminal {
@@ -153,9 +152,8 @@ body {
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 999px;
-  background: #ff3649;
-  box-shadow: 0 0 0 0 rgba(255, 54, 73, 0.7);
-  animation: pulseRed 1.15s ease-in-out infinite;
+  background: #3ce189;
+  box-shadow: 0 0 10px rgba(60, 225, 137, 0.55);
 }
 
 .runtime-alert {
