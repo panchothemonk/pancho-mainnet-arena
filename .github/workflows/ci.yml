@@ -27,5 +27,8 @@ jobs:
       - name: Typecheck
         run: npm run lint
 
+      - name: Hardening Tests
+        run: npm run test:hardening
+
       - name: Build
         run: npm run build
