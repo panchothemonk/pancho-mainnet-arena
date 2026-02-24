@@ -219,18 +219,21 @@ export async function settleSimRoundOnce(roundId: string): Promise<SimRoundSettl
 export async function settleDueSimRounds(limit = 250): Promise<{ checked: number; settled: number; rounds: string[] }> {
   const nowMs = Date.now();
   const ledger = await readSimLedger();
-  const dueRoundIds = [...new Set(ledger.entries.filter((entry) => entry.roundEndMs <= nowMs).map((entry) => entry.roundId))].slice(
-    0,
-    limit
-  );
+  const dueCandidates = [...new Set(ledger.entries.filter((entry) => entry.roundEndMs <= nowMs).map((entry) => entry.roundId))];
+  const dueRoundIds: string[] = [];
+  for (const roundId of dueCandidates) {
+    if (dueRoundIds.length >= limit) {
+      break;
+    }
+    const existing = await readSimRoundSettlement(roundId);
+    if (!existing) {
+      dueRoundIds.push(roundId);
+    }
+  }
   let settled = 0;
   const settledRoundIds: string[] = [];
 
   for (const roundId of dueRoundIds) {
-    const existing = await readSimRoundSettlement(roundId);
-    if (existing) {
-      continue;
-    }
     const result = await settleSimRoundOnce(roundId);
     if (result) {
       settled += 1;

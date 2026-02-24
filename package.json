@@ -32,7 +32,8 @@
     "ops:pause:sim-settlement": "printf 'on' | npx wrangler secret put PANCHO_PAUSE_SIM_SETTLEMENTS",
     "ops:resume:sim-settlement": "printf 'off' | npx wrangler secret put PANCHO_PAUSE_SIM_SETTLEMENTS",
     "ops:pause:all": "npm run ops:pause:joins && npm run ops:pause:sim-settlement",
-    "ops:resume:all": "npm run ops:resume:joins && npm run ops:resume:sim-settlement"
+    "ops:resume:all": "npm run ops:resume:joins && npm run ops:resume:sim-settlement",
+    "test:hardening": "tsx --test tests/hardening.test.ts"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.16.5",
@@ -49,6 +50,7 @@
     "@types/pg": "^8.16.0",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.2",
     "wrangler": "^4.65.0"
   }
