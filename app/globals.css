@@ -98,7 +98,8 @@ body {
   height: 0.52rem;
   border-radius: 999px;
   background: #3ce189;
-  box-shadow: 0 0 10px rgba(60, 225, 137, 0.55);
+  box-shadow: 0 0 0 0 rgba(60, 225, 137, 0.7);
+  animation: pulseGreen 1.15s ease-in-out infinite;
 }
 
 .terminal {
@@ -153,7 +154,8 @@ body {
   height: 0.5rem;
   border-radius: 999px;
   background: #3ce189;
-  box-shadow: 0 0 10px rgba(60, 225, 137, 0.55);
+  box-shadow: 0 0 0 0 rgba(60, 225, 137, 0.7);
+  animation: pulseGreen 1.15s ease-in-out infinite;
 }
 
 .runtime-alert {
@@ -721,6 +723,21 @@ body {
   100% {
     opacity: 1;
     box-shadow: 0 0 0 0 rgba(255, 54, 73, 0);
+  }
+}
+
+@keyframes pulseGreen {
+  0% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(60, 225, 137, 0.7);
+  }
+  70% {
+    opacity: 0.8;
+    box-shadow: 0 0 0 8px rgba(60, 225, 137, 0);
+  }
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(60, 225, 137, 0);
   }
 }
 
