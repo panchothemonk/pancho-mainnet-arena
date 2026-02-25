@@ -1,9 +1,17 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "pancho-degen-arena",
+  "name": "pancho-mainnet-arena",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-02-13",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "routes": [
+    {
+      "pattern": "mainarena.panchoverse.com",
+      "zone_name": "panchoverse.com",
+      "custom_domain": true
+    }
+  ],
+  "preview_urls": false,
   "d1_databases": [
     {
       "binding": "PANCHO_SIM_DB",
