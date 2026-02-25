@@ -383,6 +383,7 @@ async function keeperTick(connection, payer, configPda) {
     const parsed = parseRound(account.account.data);
     if (!parsed) continue;
     if (parsed.status === ROUND_STATUS_SETTLED) continue;
+    if (parsed.endTs > nowSec) continue;
     const list = backfillByMarket.get(parsed.market) ?? [];
     list.push(parsed.roundId);
     backfillByMarket.set(parsed.market, list);

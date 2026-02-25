@@ -17,6 +17,7 @@ const OPEN_ENTRY_SECONDS: i64 = 60;
 const LOCK_WINDOW_SECONDS: i64 = 60;
 const ENTRY_CYCLE_SECONDS: i64 = OPEN_ENTRY_SECONDS + LOCK_WINDOW_SECONDS;
 const SETTLEMENT_SECONDS: i64 = 300;
+const MAX_CREATE_AHEAD_SECONDS: i64 = ENTRY_CYCLE_SECONDS * 2;
 
 #[program]
 pub mod pancho_pvp {
@@ -97,6 +98,10 @@ pub mod pancho_pvp {
         let now = Clock::get()?.unix_timestamp;
         require!(round_id >= 0, PanchoError::InvalidSchedule);
         require!(round_id % ENTRY_CYCLE_SECONDS == 0, PanchoError::InvalidSchedule);
+        let max_allowed_round_id = now
+            .checked_add(MAX_CREATE_AHEAD_SECONDS)
+            .ok_or(PanchoError::MathOverflow)?;
+        require!(round_id <= max_allowed_round_id, PanchoError::InvalidSchedule);
         let expected_lock_ts = round_id
             .checked_add(OPEN_ENTRY_SECONDS)
             .ok_or(PanchoError::MathOverflow)?;

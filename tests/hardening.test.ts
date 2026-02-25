@@ -106,8 +106,16 @@ test("on-chain source enforces deterministic permissionless round creation", asy
   assert.notEqual(createRoundBlock.length, 0);
   assert.doesNotMatch(createRoundBlock, /has_one = admin/);
   assert.match(source, /round_id % ENTRY_CYCLE_SECONDS == 0/);
+  assert.match(source, /MAX_CREATE_AHEAD_SECONDS/);
+  assert.match(source, /round_id <= max_allowed_round_id/);
   assert.match(source, /lock_ts == expected_lock_ts/);
   assert.match(source, /end_ts == expected_end_ts/);
+});
+
+test("keeper source prioritizes due unsettled rounds for backfill", async () => {
+  const source = await readFile(path.join(ROOT_DIR, "scripts/onchain-keeper.mjs"), "utf8");
+  assert.match(source, /if \(parsed\.status === ROUND_STATUS_SETTLED\) continue;/);
+  assert.match(source, /if \(parsed\.endTs > nowSec\) continue;/);
 });
 
 test("randomized settlement invariants: conservation holds and refunds are fee-free", async () => {

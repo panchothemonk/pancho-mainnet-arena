@@ -27,6 +27,7 @@ if (forbidden.length > 0) {
 const idlPath = "onchain/abi/pancho_pvp.idl.json";
 const typesPath = "onchain/abi/pancho_pvp.types.ts";
 const sourcePath = "onchain/programs/pancho_pvp/src/lib.rs";
+const frontendCodecPath = "lib/onchain-pvp.ts";
 
 let idl;
 try {
@@ -58,6 +59,7 @@ for (const required of ["oracleAccountSol", "oracleAccountBtc", "oracleAccountEt
 }
 
 const sourceText = readFileSync(sourcePath, "utf8");
+const frontendCodecText = readFileSync(frontendCodecPath, "utf8");
 const extractStringConst = (name) => {
   const match = sourceText.match(new RegExp(`const\\s+${name}\\s*:\\s*Pubkey\\s*=\\s*pubkey!\\(\"([^\"]+)\"\\);`));
   return match?.[1] ?? null;
@@ -107,6 +109,88 @@ if (!typesText.includes(immutableTreasury)) {
 }
 if (!new RegExp(`\\b${immutableFeeBps}\\b`).test(sourceText)) {
   fail(`Source drift: missing immutable fee constant ${immutableFeeBps}.`);
+}
+
+function parseBufferConstArray(text, constName) {
+  const match = text.match(new RegExp(`const\\s+${constName}\\s*=\\s*Buffer\\.from\\(\\[([^\\]]+)\\]\\);`));
+  if (!match) {
+    fail(`Codec drift: missing ${constName} in ${frontendCodecPath}.`);
+  }
+  return match[1]
+    .split(",")
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isFinite(value));
+}
+
+function arraysEqual(a, b) {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+function expectInstructionDiscriminator(idlName, frontendConst) {
+  const instruction = Array.isArray(idl?.instructions)
+    ? idl.instructions.find((ix) => ix?.name === idlName)
+    : null;
+  if (!instruction || !Array.isArray(instruction.discriminator)) {
+    fail(`ABI snapshot missing discriminator for instruction ${idlName}.`);
+  }
+  const frontendDiscriminator = parseBufferConstArray(frontendCodecText, frontendConst);
+  if (!arraysEqual(frontendDiscriminator, instruction.discriminator)) {
+    fail(
+      `Codec drift: ${frontendConst} in ${frontendCodecPath} does not match IDL discriminator for ${idlName}.`
+    );
+  }
+}
+
+function expectAccountDiscriminator(idlName, frontendConst) {
+  const account = Array.isArray(idl?.accounts)
+    ? idl.accounts.find((entry) => entry?.name === idlName)
+    : null;
+  if (!account || !Array.isArray(account.discriminator)) {
+    fail(`ABI snapshot missing discriminator for account ${idlName}.`);
+  }
+  const frontendDiscriminator = parseBufferConstArray(frontendCodecText, frontendConst);
+  if (!arraysEqual(frontendDiscriminator, account.discriminator)) {
+    fail(
+      `Codec drift: ${frontendConst} in ${frontendCodecPath} does not match IDL discriminator for ${idlName}.`
+    );
+  }
+}
+
+expectInstructionDiscriminator("create_round", "CREATE_ROUND_DISCRIMINATOR");
+expectInstructionDiscriminator("join_round", "JOIN_ROUND_DISCRIMINATOR");
+expectInstructionDiscriminator("lock_round", "LOCK_ROUND_DISCRIMINATOR");
+expectInstructionDiscriminator("settle_round", "SETTLE_ROUND_DISCRIMINATOR");
+expectInstructionDiscriminator("claim", "CLAIM_DISCRIMINATOR");
+
+expectAccountDiscriminator("Round", "ROUND_ACCOUNT_DISCRIMINATOR");
+expectAccountDiscriminator("Position", "POSITION_ACCOUNT_DISCRIMINATOR");
+expectAccountDiscriminator("GlobalConfig", "CONFIG_ACCOUNT_DISCRIMINATOR");
+
+const requiredCodecMarkers = [
+  "data.length < 152",
+  "new PublicKey(data.subarray(49, 81))",
+  "data.readBigInt64LE(81)",
+  "data.readBigInt64LE(89)",
+  "data.readUInt8(117)",
+  "data.readUInt8(118)",
+  "data.readBigUInt64LE(119)",
+  "data.readBigUInt64LE(127)",
+  "data.readBigUInt64LE(143)",
+  "data.length < 200",
+  "new PublicKey(data.subarray(40, 72))",
+  "new PublicKey(data.subarray(104, 136))",
+  "new PublicKey(data.subarray(136, 168))",
+  "new PublicKey(data.subarray(168, 200))",
+  "data.length < 83",
+  "data.readUInt8(72)",
+  "data.readBigUInt64LE(73)",
+  "data.readUInt8(81) === 1"
+];
+
+for (const marker of requiredCodecMarkers) {
+  if (!frontendCodecText.includes(marker)) {
+    fail(`Codec drift: expected marker "${marker}" missing from ${frontendCodecPath}.`);
+  }
 }
 
 console.log("[ci-guard] OK");
