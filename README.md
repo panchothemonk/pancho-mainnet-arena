@@ -162,9 +162,12 @@ Current state:
 - Custody and payout logic is implemented on-chain (round/vault/position PDAs, join/settle/claim).
 - Oracle validation is enforced on-chain via legacy Pyth account parsing (owner + expected account + staleness checks).
 
-### On-chain keeper (create/lock/settle crank)
+### On-chain keeper (optional crank)
 
-Use this when `NEXT_PUBLIC_USE_ONCHAIN_PROGRAM=true` so rounds are continuously created, locked, and settled on Solana.
+`NEXT_PUBLIC_USE_ONCHAIN_PROGRAM=true` now supports two modes:
+
+- **On-demand mode (default recommended):** users lazily create rounds on join; first claimer after end can trigger settle + claim in one flow.
+- **Crank mode (optional):** run keeper for tighter wall-clock lock/settle timing.
 
 Run:
 
@@ -172,7 +175,7 @@ Run:
 npm run onchain:keeper
 ```
 
-Required env:
+Required env (only for crank mode):
 - `PANCHO_KEEPER_KEYPAIR_PATH` or `PANCHO_KEEPER_SECRET_KEY` (JSON array private key)
 - `PANCHO_ORACLE_PROGRAM_ID` (owner program of the oracle price accounts)
 - `PANCHO_ORACLE_ACCOUNT_SOL`
@@ -200,4 +203,4 @@ curl -X POST http://localhost:3000/api/settle -H "x-settle-key: $SETTLE_API_KEY"
 
 ## Full cutover guide
 
-See `/ONCHAIN_CUTOVER.md` for exact preflight -> deploy -> keeper -> frontend cutover order.
+See `/ONCHAIN_CUTOVER.md` for exact preflight -> deploy -> frontend cutover order (keeper optional).

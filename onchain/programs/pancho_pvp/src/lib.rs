@@ -13,6 +13,10 @@ const ROUND_OPEN: u8 = 0;
 const ROUND_LOCKED: u8 = 1;
 const ROUND_SETTLED: u8 = 2;
 const LOCK_GRACE_SECONDS: i64 = 180;
+const OPEN_ENTRY_SECONDS: i64 = 60;
+const LOCK_WINDOW_SECONDS: i64 = 60;
+const ENTRY_CYCLE_SECONDS: i64 = OPEN_ENTRY_SECONDS + LOCK_WINDOW_SECONDS;
+const SETTLEMENT_SECONDS: i64 = 300;
 
 #[program]
 pub mod pancho_pvp {
@@ -91,6 +95,16 @@ pub mod pancho_pvp {
         require!(end_ts > lock_ts, PanchoError::InvalidSchedule);
 
         let now = Clock::get()?.unix_timestamp;
+        require!(round_id >= 0, PanchoError::InvalidSchedule);
+        require!(round_id % ENTRY_CYCLE_SECONDS == 0, PanchoError::InvalidSchedule);
+        let expected_lock_ts = round_id
+            .checked_add(OPEN_ENTRY_SECONDS)
+            .ok_or(PanchoError::MathOverflow)?;
+        let expected_end_ts = expected_lock_ts
+            .checked_add(SETTLEMENT_SECONDS)
+            .ok_or(PanchoError::MathOverflow)?;
+        require!(lock_ts == expected_lock_ts, PanchoError::InvalidSchedule);
+        require!(end_ts == expected_end_ts, PanchoError::InvalidSchedule);
         require!(lock_ts > now, PanchoError::InvalidSchedule);
         require!(market <= 2, PanchoError::InvalidMarket);
 
@@ -636,16 +650,15 @@ pub struct SetOracleAccounts<'info> {
 #[instruction(market: u8, round_id: i64)]
 pub struct CreateRound<'info> {
     #[account(mut)]
-    pub admin: Signer<'info>,
+    pub payer: Signer<'info>,
     #[account(
         seeds = [b"config"],
-        bump = config.bump,
-        has_one = admin
+        bump = config.bump
     )]
     pub config: Account<'info, GlobalConfig>,
     #[account(
         init,
-        payer = admin,
+        payer = payer,
         space = 8 + Round::INIT_SPACE,
         seeds = [b"round".as_ref(), &[market], &round_id.to_le_bytes()],
         bump
@@ -653,7 +666,7 @@ pub struct CreateRound<'info> {
     pub round: Account<'info, Round>,
     #[account(
         init,
-        payer = admin,
+        payer = payer,
         space = 8 + Vault::INIT_SPACE,
         seeds = [b"vault", round.key().as_ref(), &[SIDE_UP]],
         bump
@@ -661,7 +674,7 @@ pub struct CreateRound<'info> {
     pub up_vault: Account<'info, Vault>,
     #[account(
         init,
-        payer = admin,
+        payer = payer,
         space = 8 + Vault::INIT_SPACE,
         seeds = [b"vault", round.key().as_ref(), &[SIDE_DOWN]],
         bump

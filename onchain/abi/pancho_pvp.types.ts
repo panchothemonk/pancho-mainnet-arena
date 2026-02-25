@@ -64,12 +64,9 @@ export type PanchoPvp = {
       ],
       "accounts": [
         {
-          "name": "admin",
+          "name": "payer",
           "writable": true,
-          "signer": true,
-          "relations": [
-            "config"
-          ]
+          "signer": true
         },
         {
           "name": "config",

@@ -99,6 +99,17 @@ test("on-chain source enforces claimed/total position guard before dust sweep", 
   assert.match(source, /PanchoError::ClaimsNotComplete/);
 });
 
+test("on-chain source enforces deterministic permissionless round creation", async () => {
+  const source = await readFile(path.join(ROOT_DIR, "onchain/programs/pancho_pvp/src/lib.rs"), "utf8");
+  assert.match(source, /pub payer: Signer<'info>/);
+  const createRoundBlock = source.match(/pub struct CreateRound<'info> \{[\s\S]*?\n\}/)?.[0] ?? "";
+  assert.notEqual(createRoundBlock.length, 0);
+  assert.doesNotMatch(createRoundBlock, /has_one = admin/);
+  assert.match(source, /round_id % ENTRY_CYCLE_SECONDS == 0/);
+  assert.match(source, /lock_ts == expected_lock_ts/);
+  assert.match(source, /end_ts == expected_end_ts/);
+});
+
 test("randomized settlement invariants: conservation holds and refunds are fee-free", async () => {
   tempDir = await mkdtemp(path.join(tmpdir(), "pancho-hardening-"));
   process.chdir(tempDir);

@@ -12,10 +12,16 @@ import {
 import { Buffer } from "buffer";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  buildCreateRoundInstruction,
   buildClaimInstruction,
   buildJoinRoundInstruction,
+  buildLockRoundInstruction,
+  buildSettleRoundInstruction,
+  configOracleForMarket,
+  decodeConfigAccount,
   decodePositionAccount,
   decodeRoundAccount,
+  deriveConfigPda,
   derivePositionPda,
   deriveRoundPda,
   estimatePositionPayoutLamports,
@@ -174,6 +180,7 @@ const CLAIM_HISTORY_CACHE_KEY_PREFIX = "pancho_claim_history_v1:";
 const ROUND_STATUS_OPEN = 0;
 const ROUND_STATUS_LOCKED = 1;
 const ROUND_STATUS_SETTLED = 2;
+const LOCK_GRACE_SECONDS = 180;
 
 function toRoundStatusLabel(status: number): "OPEN" | "LOCKED" | "SETTLED" | "UNKNOWN" {
   if (status === ROUND_STATUS_OPEN) return "OPEN";
@@ -651,8 +658,8 @@ export default function UpDownTerminal() {
       return false;
     }
     const claimState = onchainClaimStates[receipt.signature];
-    if (!claimState || claimState.roundStatus !== "SETTLED") {
-      setError("Round not settled yet.");
+    if (!claimState) {
+      setError("Claim state unavailable yet. Retry in a second.");
       return false;
     }
     if (claimState.claimed) {
@@ -673,6 +680,56 @@ export default function UpDownTerminal() {
       const connection = new Connection(endpoint, "confirmed");
       const user = new PublicKey(walletAddress);
       const roundStartMs = roundStartMsFromRoundId(receipt.roundId);
+      const marketCode = marketKeyToCode(receipt.market);
+      const roundPda = deriveRoundPda(marketCode, BigInt(Math.floor(roundStartMs / 1000)));
+      const [roundInfo, configInfo] = await connection.getMultipleAccountsInfo([roundPda, deriveConfigPda()], "confirmed");
+      if (!roundInfo) {
+        throw new Error("Round account not found.");
+      }
+      if (!configInfo) {
+        throw new Error("Config account not found.");
+      }
+      const round = decodeRoundAccount(Buffer.from(roundInfo.data));
+      const config = decodeConfigAccount(Buffer.from(configInfo.data));
+      if (!round || !config) {
+        throw new Error("Failed to decode onchain state.");
+      }
+
+      const nowSec = Math.floor(Date.now() / 1000);
+      const preIxs: TransactionInstruction[] = [];
+      if (round.status !== ROUND_STATUS_SETTLED) {
+        if (
+          round.status === ROUND_STATUS_OPEN &&
+          nowSec >= round.lockTs &&
+          nowSec <= round.lockTs + LOCK_GRACE_SECONDS &&
+          nowSec < round.endTs
+        ) {
+          preIxs.push(
+            buildLockRoundInstruction({
+              marketKey: receipt.market,
+              roundStartMs,
+              oraclePrice: round.oraclePriceAccount
+            })
+          );
+        }
+
+        if (nowSec >= round.endTs) {
+          preIxs.push(
+            buildSettleRoundInstruction({
+              marketKey: receipt.market,
+              roundStartMs,
+              oraclePrice: round.oraclePriceAccount,
+              treasury: config.treasury
+            })
+          );
+        }
+      }
+
+      if (round.status !== ROUND_STATUS_SETTLED && preIxs.length === 0) {
+        setError("Round is still active. Claim after settlement window.");
+        return false;
+      }
+
       const claimIx = buildClaimInstruction({
         user,
         marketKey: receipt.market,
@@ -685,7 +742,7 @@ export default function UpDownTerminal() {
         feePayer: user,
         blockhash: latest.blockhash,
         lastValidBlockHeight: latest.lastValidBlockHeight
-      }).add(claimIx);
+      }).add(...preIxs, claimIx);
       const sent = await provider.signAndSendTransaction(tx);
       await waitForConfirmation(connection, sent.signature);
 
@@ -907,13 +964,6 @@ export default function UpDownTerminal() {
       const connection = new Connection(endpoint, "confirmed");
       const from = new PublicKey(walletAddress);
       const lamports = Math.max(1, Math.round(stakeSol * LAMPORTS_PER_SOL));
-      const joinIx = buildJoinRoundInstruction({
-        user: from,
-        marketKey: selectedMarket.key,
-        roundStartMs: currentRound.startMs,
-        direction,
-        lamports
-      });
       const to = new PublicKey(ESCROW_WALLET);
       const memo = `PANCHO|${selectedMarket.key}|${currentRound.roundId}|${direction}|${stake}`;
       const transferIx = SystemProgram.transfer({ fromPubkey: from, toPubkey: to, lamports });
@@ -929,9 +979,69 @@ export default function UpDownTerminal() {
         feePayer: from,
         blockhash: latest.blockhash,
         lastValidBlockHeight: latest.lastValidBlockHeight
-      }).add(...(USE_ONCHAIN_PROGRAM ? [joinIx] : [transferIx, memoIx]));
+      });
+      if (USE_ONCHAIN_PROGRAM) {
+        const marketCode = marketKeyToCode(selectedMarket.key);
+        const roundPda = deriveRoundPda(marketCode, BigInt(Math.floor(currentRound.startMs / 1000)));
+        const [roundInfo, configInfo] = await connection.getMultipleAccountsInfo([roundPda, deriveConfigPda()], "confirmed");
+        const roundMissing = !roundInfo;
+        if (!configInfo) {
+          throw new Error("Onchain config account missing.");
+        }
+        const config = decodeConfigAccount(Buffer.from(configInfo.data));
+        if (!config) {
+          throw new Error("Failed to decode onchain config.");
+        }
+        if (roundMissing) {
+          tx.add(
+            buildCreateRoundInstruction({
+              payer: from,
+              marketKey: selectedMarket.key,
+              roundStartMs: currentRound.startMs,
+              oraclePriceAccount: configOracleForMarket(config, marketCode)
+            })
+          );
+        }
+        tx.add(
+          buildJoinRoundInstruction({
+            user: from,
+            marketKey: selectedMarket.key,
+            roundStartMs: currentRound.startMs,
+            direction,
+            lamports
+          })
+        );
+      } else {
+        tx.add(transferIx, memoIx);
+      }
 
-      const sent = await provider.signAndSendTransaction(tx);
+      let sent;
+      try {
+        sent = await provider.signAndSendTransaction(tx);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error ?? "");
+        const createRace =
+          USE_ONCHAIN_PROGRAM &&
+          /already in use|custom program error: 0x0|account.*in use|allocate: account/i.test(message);
+        if (!createRace) {
+          throw error;
+        }
+
+        const retryJoinOnly = new Transaction({
+          feePayer: from,
+          blockhash: latest.blockhash,
+          lastValidBlockHeight: latest.lastValidBlockHeight
+        }).add(
+          buildJoinRoundInstruction({
+            user: from,
+            marketKey: selectedMarket.key,
+            roundStartMs: currentRound.startMs,
+            direction,
+            lamports
+          })
+        );
+        sent = await provider.signAndSendTransaction(retryJoinOnly);
+      }
       const confirmState = await waitForConfirmation(connection, sent.signature);
       const explorer = `https://explorer.solana.com/tx/${sent.signature}?cluster=devnet`;
       const receipt: OnchainReceipt = {
@@ -1384,7 +1494,7 @@ export default function UpDownTerminal() {
         {USE_ONCHAIN_PROGRAM ? (
           <>
             <p className="footnote">
-              Onchain mode: join now, then claim later after settle. Claims can stack across rounds.
+              Onchain mode: join now; claims stack, and first post-end claim can auto-settle + claim.
             </p>
             {!walletAddress ? <p className="footnote">Connect wallet to view transactions.</p> : null}
             {walletAddress && onchainReceipts.length === 0 ? <p className="footnote">No join transactions yet in this session.</p> : null}
@@ -1412,9 +1522,8 @@ export default function UpDownTerminal() {
                         const claimPending = Boolean(claimPendingByReceipt[receipt.signature]);
                         const canClaim = Boolean(
                           claimState &&
-                            claimState.roundStatus === "SETTLED" &&
+                            claimState.roundStatus !== "UNKNOWN" &&
                             !claimState.claimed &&
-                            claimState.claimableLamports > 0 &&
                             !claimPending
                         );
                         return (
@@ -1464,7 +1573,13 @@ export default function UpDownTerminal() {
                                 </a>
                               ) : null}
                               <button type="button" className="expand-toggle" onClick={() => void claimRound(receipt)} disabled={!canClaim}>
-                                {claimPending ? "Claiming..." : claimState?.claimed ? "Claimed" : "Claim"}
+                                {claimPending
+                                  ? "Processing..."
+                                  : claimState?.claimed
+                                  ? "Claimed"
+                                  : claimState?.roundStatus === "SETTLED"
+                                  ? "Claim"
+                                  : "Settle + Claim"}
                               </button>
                             </div>
                           </>

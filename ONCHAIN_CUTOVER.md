@@ -53,7 +53,7 @@ Verify:
 solana program show "$PANCHO_PROGRAM_ID" --url mainnet-beta
 ```
 
-## 4) Start On-Chain Keeper
+## 4) Keeper Mode (optional)
 
 From repo root:
 
@@ -61,13 +61,18 @@ From repo root:
 npm run onchain:keeper
 ```
 
-Keeper will:
+Keeper can:
 
 - create rounds
 - lock rounds
 - settle rounds
 
 across SOL/BTC/ETH on configured cadence.
+
+If keeper is not running, the app still functions:
+
+- first join in a window lazily creates the round,
+- first claim after end can settle then claim.
 
 ## 5) Frontend Cutover Flags
 

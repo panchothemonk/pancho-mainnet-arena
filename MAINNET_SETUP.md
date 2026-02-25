@@ -40,7 +40,7 @@ Set deployed program id in:
 - `PANCHO_PROGRAM_ID`
 - `NEXT_PUBLIC_PANCHO_PROGRAM_ID`
 
-## 4) Start Mainnet Keeper
+## 4) Start Mainnet Keeper (optional)
 
 ```bash
 cd /path/to/pancho-mainnet-arena
@@ -48,6 +48,8 @@ npm run onchain:keeper
 ```
 
 Keeper will refuse init if treasury or fee do not match immutable contract rules.
+
+Without keeper, rounds still run in on-demand mode (lazy create on join, settle+claim on first post-end claim).
 
 ## 5) Deploy Cloudflare App
 
