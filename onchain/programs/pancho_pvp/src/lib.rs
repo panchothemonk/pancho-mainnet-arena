@@ -1,9 +1,9 @@
 use anchor_lang::prelude::*;
 
-declare_id!("52nguesHaBuF4psFr2uybVnW4angLW2ZtsBRSRmdF8k3");
+declare_id!("7rGCvuWPb44c7oj1xcQGwXvGz917hWsm38QxjEHApkfK");
 
 const BPS_DENOMINATOR: u64 = 10_000;
-const INITIAL_ADMIN: Pubkey = pubkey!("6X8KQrJ87ekdeUaxwR38fRtrhhDr1ZE4PSc1GsGRqTfe");
+const INITIAL_ADMIN: Pubkey = pubkey!("Dkm5UeGTaeXDkauBMtNwbHGw7q2aXbrqb9HBQVN5GFx8");
 const INITIAL_TREASURY: Pubkey = pubkey!("418cSB954o9jaYeDRFj3CFWzzLNkTERwY2h8ErHEgvzR");
 const IMMUTABLE_FEE_BPS: u16 = 600;
 const SIDE_UP: u8 = 0;
@@ -233,9 +233,11 @@ pub mod pancho_pvp {
         require!(now <= round.lock_ts + LOCK_GRACE_SECONDS, PanchoError::LockWindowExpired);
 
         let clock = Clock::get()?;
-        let price = read_legacy_pyth_price(
+        let price = read_oracle_price(
             &ctx.accounts.oracle_price,
             round.oracle_price_account,
+            round.feed_id,
+            now,
             clock.slot,
             ctx.accounts.config.oracle_max_age_sec as u64,
             ctx.accounts.config.oracle_program,
@@ -271,9 +273,11 @@ pub mod pancho_pvp {
 
         if round.status == ROUND_LOCKED {
             let clock = Clock::get()?;
-            let price = read_legacy_pyth_price(
+            let price = read_oracle_price(
                 &ctx.accounts.oracle_price,
                 round.oracle_price_account,
+                round.feed_id,
+                now,
                 clock.slot,
                 ctx.accounts.config.oracle_max_age_sec as u64,
                 ctx.accounts.config.oracle_program,
@@ -447,9 +451,11 @@ fn expected_feed_id(market: u8) -> Result<[u8; 32]> {
     }
 }
 
-fn read_legacy_pyth_price(
+fn read_oracle_price(
     oracle_price: &UncheckedAccount,
     expected_oracle_key: Pubkey,
+    expected_feed_id: [u8; 32],
+    now_unix: i64,
     now_slot: u64,
     max_slot_age: u64,
     expected_oracle_program: Pubkey,
@@ -469,13 +475,24 @@ fn read_legacy_pyth_price(
     let data = oracle_info
         .try_borrow_data()
         .map_err(|_| error!(PanchoError::InvalidOraclePrice))?;
-    let parsed = parse_legacy_pyth_price_account(&data).ok_or(error!(PanchoError::InvalidOraclePrice))?;
-    require!(parsed.status == LEGACY_PYTH_STATUS_TRADING, PanchoError::InvalidOraclePrice);
+    if let Some(parsed) = parse_legacy_pyth_price_account(&data) {
+        require!(parsed.status == LEGACY_PYTH_STATUS_TRADING, PanchoError::InvalidOraclePrice);
+        require!(
+            now_slot.saturating_sub(parsed.pub_slot) <= max_slot_age,
+            PanchoError::StaleOraclePrice
+        );
+        return Ok(OraclePrice {
+            price: parsed.price,
+            expo: parsed.expo,
+        });
+    }
+
+    let parsed = parse_receiver_pyth_price_account(&data, &expected_feed_id)
+        .ok_or(error!(PanchoError::InvalidOraclePrice))?;
     require!(
-        now_slot.saturating_sub(parsed.pub_slot) <= max_slot_age,
+        now_unix.saturating_sub(parsed.publish_time) <= max_slot_age as i64,
         PanchoError::StaleOraclePrice
     );
-
     Ok(OraclePrice {
         price: parsed.price,
         expo: parsed.expo,
@@ -500,6 +517,12 @@ struct LegacyPythPrice {
     expo: i32,
     status: u32,
     pub_slot: u64,
+}
+
+struct ReceiverPythPrice {
+    price: i64,
+    expo: i32,
+    publish_time: i64,
 }
 
 fn read_u32_le(data: &[u8], offset: usize) -> Option<u32> {
@@ -545,16 +568,49 @@ fn parse_legacy_pyth_price_account(data: &[u8]) -> Option<LegacyPythPrice> {
     })
 }
 
+fn parse_receiver_pyth_price_account(data: &[u8], expected_feed_id: &[u8; 32]) -> Option<ReceiverPythPrice> {
+    // Pyth receiver price update accounts are compact and include feed id + price message.
+    // We locate the feed id dynamically and decode fields relative to it.
+    let feed_off = find_subslice(data, expected_feed_id)?;
+    // feed_id(32) + price(i64) + conf(u64) + expo(i32) + publish_time(i64)
+    let min_len = feed_off.checked_add(32 + 8 + 8 + 4 + 8)?;
+    if data.len() < min_len {
+        return None;
+    }
+
+    let price = read_i64_le(data, feed_off + 32)?;
+    let expo = read_i32_le(data, feed_off + 32 + 8 + 8)?;
+    let publish_time = read_i64_le(data, feed_off + 32 + 8 + 8 + 4)?;
+    Some(ReceiverPythPrice {
+        price,
+        expo,
+        publish_time,
+    })
+}
+
+fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() || haystack.len() < needle.len() {
+        return None;
+    }
+    haystack.windows(needle.len()).position(|w| w == needle)
+}
+
 fn transfer_from_vaults(up_vault: &AccountInfo, down_vault: &AccountInfo, to: &AccountInfo, amount: u64) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
 
+    // Vaults are rent-exempt Anchor accounts; never transfer their rent reserve.
+    let rent = Rent::get()?;
+    let up_reserve = rent.minimum_balance(up_vault.data_len());
+    let down_reserve = rent.minimum_balance(down_vault.data_len());
+
     let mut remaining = amount;
-    let up_available = up_vault.lamports();
+    let up_available = up_vault.lamports().saturating_sub(up_reserve);
     let take_up = up_available.min(remaining);
     if take_up > 0 {
-        **up_vault.try_borrow_mut_lamports()? = up_available
+        **up_vault.try_borrow_mut_lamports()? = up_vault
+            .lamports()
             .checked_sub(take_up)
             .ok_or(error!(PanchoError::MathOverflow))?;
         **to.try_borrow_mut_lamports()? = to
@@ -567,10 +623,11 @@ fn transfer_from_vaults(up_vault: &AccountInfo, down_vault: &AccountInfo, to: &A
     }
 
     if remaining > 0 {
-        let down_available = down_vault.lamports();
+        let down_available = down_vault.lamports().saturating_sub(down_reserve);
         let take_down = down_available.min(remaining);
         if take_down > 0 {
-            **down_vault.try_borrow_mut_lamports()? = down_available
+            **down_vault.try_borrow_mut_lamports()? = down_vault
+                .lamports()
                 .checked_sub(take_down)
                 .ok_or(error!(PanchoError::MathOverflow))?;
             **to.try_borrow_mut_lamports()? = to

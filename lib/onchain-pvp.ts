@@ -2,7 +2,7 @@ import { PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.j
 import { Buffer } from "buffer";
 
 export const PANCHO_PROGRAM_ID = new PublicKey(
-  process.env.NEXT_PUBLIC_PANCHO_PROGRAM_ID ?? "52nguesHaBuF4psFr2uybVnW4angLW2ZtsBRSRmdF8k3"
+  process.env.NEXT_PUBLIC_PANCHO_PROGRAM_ID ?? "7rGCvuWPb44c7oj1xcQGwXvGz917hWsm38QxjEHApkfK"
 );
 
 export const CREATE_ROUND_DISCRIMINATOR = Buffer.from([229, 218, 236, 169, 231, 80, 134, 112]);

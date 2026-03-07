@@ -19,7 +19,7 @@ export const MARKET_CONFIGS: MarketConfig[] = [
   { key: "ETH", label: "ETH", asset: "ETH/USD", feedId: "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace" },
   { key: "XRP", label: "XRP", asset: "XRP/USD", feedId: "ec5d399846a9209f3fe5881d70aae9268c94339ff9817e8d18ff19fa05eea1c8" },
   { key: "PEPE", label: "PEPE", asset: "1000PEPE/USD", feedId: "7f3febb69d47fd18c6e29697fc2c19ee70b9877111410238d8587f2cffacb232" },
-  { key: "BONK", label: "BONK", asset: "BONK/USD", feedId: "72b021217ca3fe68922a19aaf990109cb9d84e9ad004b4d2025ad6f529314419" }
+  { key: "BONK", label: "PANCHO", asset: "PANCHO/USD", feedId: "72b021217ca3fe68922a19aaf990109cb9d84e9ad004b4d2025ad6f529314419" }
 ];
 
 const MARKET_BY_KEY = new Map(MARKET_CONFIGS.map((market) => [market.key, market]));

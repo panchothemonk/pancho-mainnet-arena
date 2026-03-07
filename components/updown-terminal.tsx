@@ -164,6 +164,7 @@ type WalletWindow = Window & {
 };
 
 const STAKES: Stake[] = [5, 10, 25, 50, 100, 250];
+const DISABLED_MARKET_KEYS = new Set(["XRP", "PEPE", "BONK"]);
 const OPEN_ENTRY_SECONDS = 60;
 const LOCK_SECONDS = 60;
 const ENTRY_CYCLE_SECONDS = OPEN_ENTRY_SECONDS + LOCK_SECONDS;
@@ -1257,7 +1258,7 @@ export default function UpDownTerminal() {
 
       <p className="launch-banner">
         <span className="launch-live-dot" aria-hidden="true" />
-        SOL MAINNET PLAYER VS PLAYER is live on mainarena.panchoverse.com.
+        SOL DEVNET PLAYER VS PLAYER is live.
       </p>
       {runtimeStatus && runtimeStatus.status !== "ok" ? (
         <div className={`runtime-alert runtime-alert-${runtimeStatus.status}`}>
@@ -1368,8 +1369,12 @@ export default function UpDownTerminal() {
                 key={market.key}
                 type="button"
                 className={selectedMarket.key === market.key ? "chip active" : "chip"}
-                onClick={() => setSelectedMarketKey(market.key)}
-                disabled={!mounted || entryWindow.status !== "OPEN"}
+                onClick={() => {
+                  if (DISABLED_MARKET_KEYS.has(market.key)) return;
+                  setSelectedMarketKey(market.key);
+                }}
+                disabled={!mounted || entryWindow.status !== "OPEN" || DISABLED_MARKET_KEYS.has(market.key)}
+                title={DISABLED_MARKET_KEYS.has(market.key) ? "Coming soon on devnet" : undefined}
               >
                 {market.label}
               </button>

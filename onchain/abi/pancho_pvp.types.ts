@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/pancho_pvp.json`.
  */
 export type PanchoPvp = {
-  "address": "52nguesHaBuF4psFr2uybVnW4angLW2ZtsBRSRmdF8k3",
+  "address": "7rGCvuWPb44c7oj1xcQGwXvGz917hWsm38QxjEHApkfK",
   "metadata": {
     "name": "panchoPvp",
     "version": "0.1.0",
@@ -152,7 +152,7 @@ export type PanchoPvp = {
           "name": "admin",
           "writable": true,
           "signer": true,
-          "address": "6X8KQrJ87ekdeUaxwR38fRtrhhDr1ZE4PSc1GsGRqTfe"
+          "address": "Dkm5UeGTaeXDkauBMtNwbHGw7q2aXbrqb9HBQVN5GFx8"
         },
         {
           "name": "treasury",
